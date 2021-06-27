@@ -2,13 +2,14 @@ package com.atguigu.apiDemo.Transform;
 
 import com.atguigu.apiDemo.beans.SensorReading;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 
-public class transformTest2_RollingAggregation {
+public class TransformTest3_reduce {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
@@ -20,26 +21,30 @@ public class transformTest2_RollingAggregation {
         DataStream<SensorReading> dataStream = inputStream.map(new MapFunction<String, SensorReading>() {
             @Override
             public SensorReading map(String s) throws Exception {
-                String[] fiels = s.split(", ");
-                return new SensorReading(fiels[0],new Long(fiels[1]),new Double(fiels[2]));
+                String[] fields = s.split(", ");
+                return new SensorReading(fields[0],new Long(fields[1]),new Double(fields[2]));
             }
         });
-        //lambda表达式写法
-//        DataStream<SensorReading> dataStream = inputStream.map(line -> {
-//            String[] fields = line.split(", ");
-//            return new SensorReading(fields[0],new Long(fields[1]),new Double(fields[2]));
-//        });
 
         //分组
         KeyedStream<SensorReading, Tuple> keyedStream = dataStream.keyBy("id");
-//        KeyedStream<SensorReading, String> keyedStream1 = dataStream.keyBy(SensorReading::getId);//方法引用（没有括号，不是调用）
 
-        //滚动聚合，取当前最大的温度值
-        DataStream<SensorReading> resultStream = keyedStream.maxBy("temperature");
+        //reduce聚合，取最大的温度值，以及当前最新的时间戳
+        DataStream<SensorReading> resultStream = keyedStream.reduce(new ReduceFunction<SensorReading>() {
+            @Override
+            public SensorReading reduce(SensorReading value1, SensorReading value2) throws Exception {
+                return new SensorReading(value1.getId(), value2.getTimestamp(), Math.max(value1.getTemperature(), value2.getTemperature()));
+            }
+        });
+
+        //lambda 写法
+//        keyedStream.reduce((curState, newData) -> {
+//            return new SensorReading(curState.getId(),newData.getTimestamp(), Math.max(curState.getTemperature(),newData.getTemperature()))
+//        });
 
         resultStream.print();
 
-
         env.execute();
+
     }
 }
