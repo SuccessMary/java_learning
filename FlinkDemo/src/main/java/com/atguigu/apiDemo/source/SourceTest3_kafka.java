@@ -26,8 +26,6 @@ public class SourceTest3_kafka {
         ///从kafka读取数据
         DataStream<String> dataStream = env.addSource(new FlinkKafkaConsumer011<String>("sensor",new SimpleStringSchema(),properties));
 
-
-
         env.execute();
 
     }
